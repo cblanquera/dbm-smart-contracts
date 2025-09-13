@@ -1,37 +1,23 @@
 {
-    "name": "dbm-smart-contracts",
-    "version": "1.0.0",
-    "description": "Smart Contracts For DBM Project Marissa",
-    "scripts": {
-        "build": "hardhat compile",
-        "deploy": "node scripts/deploy.js",
-        "test": "mocha test/unit/contract.test.js",
-        "verify": "node scripts/verify.js",
-        "local-testnet": "hardhat node"
-    },
-    "keywords": [
-        "Tokenization"
-    ],
-    "author": "Joaquin Enriquez",
-    "license": "MIT",
-    "dependencies": {
-        "@nomicfoundation/hardhat-toolbox": "^5.0.0",
-        "@nomiclabs/hardhat-ethers": "npm:hardhat-deploy-ethers@^0.4.2",
-        "@nomiclabs/hardhat-etherscan": "^2.1.8",
-        "@openzeppelin/contracts": "^4.3.3",
-        "chai": "^4.3.4",
-        "dotenv": "^10.0.0",
-        "ethereum-waffle": "^3.4.0",
-        "ethers": "^6.13.1",
-        "hardhat-change-network": "^0.0.7",
-        "ipfs-http-client": "^50.1.2",
-        "mocha": "^10.0.0",
-        "web3": "^1.7.0",
-        "web3modal": "^1.9.4"
-    },
-    "devDependencies": {
-        "erc721a": "^4.1.0",
-        "hardhat": "^2.22.5",
-        "hardhat-deploy": "^0.12.4"
-    }
+  "name": "dbm-smart-contracts",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Smart Contracts For DBM Project Marissa",
+  "scripts": {
+    "build": "hardhat compile",
+    "deploy": "node scripts/deploy.js",
+    "test": "mocha test/unit/contract.test.js",
+    "verify": "node scripts/verify.js",
+    "local-testnet": "hardhat node"
+  },
+  "keywords": [
+    "tokenization"
+  ],
+  "author": "Joaquin Enriquez",
+  "license": "MIT",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "6.1.0",
+    "@openzeppelin/contracts": "5.4.0",
+    "dotenv-cli": "10.0.0"
+  }
 }
