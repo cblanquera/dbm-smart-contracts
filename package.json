@@ -4,11 +4,8 @@
   "private": true,
   "description": "Smart Contracts For DBM Project Marissa",
   "scripts": {
-    "build": "hardhat compile",
-    "deploy": "node scripts/deploy.js",
-    "test": "mocha test/unit/contract.test.js",
-    "verify": "node scripts/verify.js",
-    "local-testnet": "hardhat node"
+    "test": "hardhat test",
+    "compile": "hardhat compile"
   },
   "keywords": [
     "tokenization"

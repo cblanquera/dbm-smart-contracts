@@ -137,12 +137,18 @@ abstract contract DocumentAbstract is
   function _mapData(uint256 tokenId, ITokenMetadata data) 
     internal virtual
   {
-    //prevent assigning to a non-existent token
-    _requireOwned(tokenId);
-    //if metadata is already set (immutable)
+    // NOTE: no need to check if token exists because this 
+    // method is only called after mint...
+
+    // NOTE: Chicken and egg, can't check if uri exists
+    // because the data contract needs the tokenID first...
+
+    // If metadata is already set (immutable)
     if (address(_tokenData[tokenId]) != address(0)) {
       revert MetadataAlreadySet();
     }
+    
+    // Map the metadata
     _tokenData[tokenId] = data;
   }
 }
