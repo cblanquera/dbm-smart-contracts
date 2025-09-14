@@ -40,9 +40,9 @@ contract Document is
   // ============ Write Methods ============
 
   /**
-   * @dev Allows ITokenMetadata to mint. This is a 2FA because 
-   * the ITokenMetadata also must be the minter role. This ensures
-   * that only audited metadata contracts can mint.
+   * @dev Allows ITokenMetadata to mint to `recipient`. This is a 
+   * 2FA because the ITokenMetadata also must be the minter role. 
+   * This ensures that only audited metadata contracts can mint.
    */
   function mint(address recipient) 
     external onlyRole(_MINTER_ROLE) nonReentrant returns(uint256) 

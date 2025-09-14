@@ -8,7 +8,6 @@ import { IERC721Mintable } from "../IERC721Mintable.sol";
 error TokenExists(uint256 tokenId);
 
 contract NCADocument is INCADocument {
-
   // ============ Storage ============
 
   IERC721Mintable public minter;

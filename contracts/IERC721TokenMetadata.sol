@@ -10,7 +10,7 @@ pragma solidity ^0.8.29;
  */
 interface IERC721TokenMetadata {
   /**
-   * @dev Returns the token URI for a given token ID.
+   * @dev Returns the token URI for a given `tokenId`.
    */
   function tokenURI(uint256 tokenId) external view returns(string memory);
 }

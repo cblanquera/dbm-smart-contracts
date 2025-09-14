@@ -37,7 +37,7 @@ contract NCASearch {
   }
 
   /**
-   * @dev Returns the data for a given document ID.
+   * @dev Returns the data for a given `documentId`.
    */
   function getData(string memory documentId)
     external view returns (INCADocument.Metadata memory) 
@@ -54,7 +54,7 @@ contract NCASearch {
   }
 
   /**
-   * @dev Returns the token IDs associated with a given document ID.
+   * @dev Returns the token IDs associated with a given `documentId`.
    */
   function getDocumentToken(string memory documentId) 
     external view returns (uint256) 
@@ -176,7 +176,7 @@ contract NCASearch {
   }
 
   /**
-   * @dev Returns departments for a given year.
+   * @dev Returns departments for a given `year`.
    */
   function getDepartmentCategory(string memory year) 
     external view returns (string[] memory) 
@@ -211,7 +211,7 @@ contract NCASearch {
   }
 
   /**
-   * @dev Returns agencies for a given year and department.
+   * @dev Returns agencies for a given `year` and `department`.
    */
   function getAgencyCategory(
     string memory year, 
@@ -252,7 +252,8 @@ contract NCASearch {
   }
 
   /**
-   * @dev Returns operating units for a given year, department, and agency.
+   * @dev Returns operating units for a given `year`, `department`, 
+   * and `agency`.
    */
   function getOperatingUnitCategory(
     string memory year, 
@@ -300,6 +301,10 @@ contract NCASearch {
     return units;
   }
 
+  /**
+   * @dev Returns all filters of a given `filterType` (department, 
+   * agency, unit, year).
+   */
   function getAllFilters(
     string memory filterType, 
     uint256 skip, 
@@ -321,6 +326,9 @@ contract NCASearch {
     }
   }
 
+  /**
+   * @dev Returns documents under a given `filter`.
+   */
   function getDocumentsUnderFilter(
     string memory filter, 
     uint256 skip, 
@@ -357,6 +365,9 @@ contract NCASearch {
     return ids;
   }
 
+  /**
+   * @dev Returns document IDs with pagination.
+   */
   function getDocumentIds(uint256 skip, uint256 take) 
     external view returns (string[] memory) 
   {
@@ -385,7 +396,7 @@ contract NCASearch {
   // ============ Write Methods ============
 
   /**
-   * @dev Records a view for a given document ID.
+   * @dev Records a view for a given `documentId`.
    */
   function viewed(string memory documentId) external {
     // If the recently viewed list is full
