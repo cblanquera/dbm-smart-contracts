@@ -5,6 +5,11 @@ pragma solidity ^0.8.29;
 import { ITokenMetadata } from "../ITokenMetadata.sol";
 import { IDocumentMintable } from "../IDocumentMintable.sol";
 
+error TokenExists(uint256 tokenId);
+error InvalidFilter(bytes32 filter);
+error InvalidDocumentID(bytes32 documentId);
+error EmptyDocumentSet();
+
 contract NCADocument is ITokenMetadata {
   // ============ Structs ============
 
@@ -20,8 +25,6 @@ contract NCADocument is ITokenMetadata {
     string qrId;
     string releasedDate;
   }
-
-  error TokenExists(uint256 tokenId);
 
   // ============ Storage ============
 
@@ -47,6 +50,11 @@ contract NCADocument is ITokenMetadata {
   // Mapping of token ID to document IDs
   mapping(uint256 => string) private _tokenDocuments;
 
+  // Latest 5 recently viewed document IDs
+  string[] private _recentlyViewed;
+  // Mapping of document ID to view count
+  mapping(string => uint256) private _documentViews;
+
   // ============ Deploy ============
 
   /**
@@ -62,119 +70,335 @@ contract NCADocument is ITokenMetadata {
   /**
    * @dev Returns the total count of documents.
    */
-  function getCount() public view returns (uint256) {
+  function getCount() external view returns (uint256) {
     return _documentIds.length;
+  }
+
+  /**
+   * @dev Returns the data for a given document ID.
+   */
+  function getData(string memory documentId)
+    external view returns (Metadata memory) 
+  {
+    bytes32 idHash = keccak256(bytes(_documentData[documentId].ncaNumber));
+    if (idHash == keccak256(bytes(""))){
+      revert InvalidDocumentID(keccak256(bytes(documentId)));
+    } else {
+      return _documentData[documentId];
+    }
+  }
+
+  function getDocumentToken(string memory documentId) 
+    external view returns (uint256[] memory) 
+  {
+    // Make an unsized array
+    uint256[] memory tokens;
+    // Serialize the document ID for comparison
+    bytes32 idHash = keccak256(bytes(documentId));
+    // Loop through all tokens
+    for (uint256 i = 0; i < _tokenIds.length; i++) {
+      // If the token maps to the document ID
+      if (keccak256(bytes(_tokenDocuments[_tokenIds[i]])) == idHash) {
+        // Add it
+        tokens[tokens.length - 1] = _tokenIds[i];
+      }
+    }
+    return tokens;
   }
 
   /**
    * @dev Returns the last token id minted.
    */
-  function getIndex() public view returns (uint256) {
+  function getIndex() external view returns (uint256) {
     return _tokenIds[_tokenIds.length - 1];
   }
 
-  function getRecentlyViewed() 
-    public view returns (string[] memory) 
+  /**
+   * @dev Returns the last 5 recently viewed document IDs.
+   */
+  function getRecentlyViewed() external view returns (string[] memory) {
+    return _recentlyViewed;
+  }
+
+  /**
+   * @dev Returns the top 5 most viewed document IDs and their view counts.
+   */
+  function getTopSearched() 
+    public view returns (string[] memory, uint256[] memory) 
   {
-    
+    uint256 length = _documentIds.length;
+
+    if (length == 0) {
+      revert EmptyDocumentSet();
+    }
+
+    // Create arrays for sorting
+    string[] memory ids = new string[](length);
+    uint256[] memory views = new uint256[](length);
+
+    // Populate arrays
+    for (uint256 i = 0; i < length; i++) {
+      ids[i] = _documentIds[i];
+      views[i] = _documentViews[_documentIds[i]];
+    }
+
+    // Sort using bubble sort (for simplicity)
+    for (uint256 i = 0; i < length; i++) {
+      for (uint256 j = i + 1; j < length; j++) {
+        if (views[i] < views[j]) {
+          // Swap views
+          uint256 tempView = views[i];
+          views[i] = views[j];
+          views[j] = tempView;
+
+          // Swap IDs
+          string memory tempId = ids[i];
+          ids[i] = ids[j];
+          ids[j] = tempId;
+        }
+      }
+    }
+
+    // Extract the top 5
+    string[] memory topId = new string[](1);
+    uint256[] memory topView = new uint256[](1);
+
+    for (uint256 i = 0; i < 1; i++) {
+      topId[i] = ids[i];
+      topView[i] = views[i];
+    }
+
+    return (topId, topView);
   }
 
   /**
    * @dev Returns the total count of departments.
    */
-  function getTotalDeptFilterCount() public view returns (uint256) {
-    return _getDepartments().length;
+  function getTotalDeptFilterCount() external view returns (uint256) {
+    return _getDepartments(0, 0).length;
   }
 
   /**
    * @dev Returns the total count of agencies.
    */
-  function getTotalAgencyFilterCount() public view returns (uint256) {
-    return _getAgencies().length;
+  function getTotalAgencyFilterCount() external view returns (uint256) {
+    return _getAgencies(0, 0).length;
   }
 
   /**
    * @dev Returns the total count of operating units.
    */
   function getTotalOperatingUnitFilterCount() 
-    public view returns (uint256)
+    external view returns (uint256)
   {
-    return _getOperatingUnits().length;
+    return _getOperatingUnits(0, 0).length;
   }
 
   /**
    * @dev Returns the total count of years.
    */
   function getTotalYearFilterCount() 
-    public view returns (uint256) 
+    external view returns (uint256) 
   {
-    return _getYears().length;
+    return _getYears(0, 0).length;
   }
 
   /**
    * @dev Returns the total number of documents filtered by department, agency, unit, or year.
    */
   function getFilteredDocumentsLength(string memory filter) 
-    public view returns (uint256) 
+    external view returns (uint256) 
   {
-    
+    return getDocumentsUnderFilter(filter, 0, 0).length;
   }
 
-  function getDocumentTypeCategory(string memory year) 
-    public view returns (string[] memory) 
-  {
-    
-  }
-
+  /**
+   * @dev Returns departments for a given year.
+   */
   function getDepartmentCategory(string memory year) 
-    public view returns (string[] memory) 
+    external view returns (string[] memory) 
   {
-    
+    // Serialize the year for comparison
+    bytes32 filter = keccak256(bytes(year));
+    // Make an unsized array
+    string[] memory departments;
+    // Loop through all documents
+    for (uint256 i = 0; i < _documentIds.length; i++) {
+      // Get the data
+      Metadata memory data = _documentData[_documentIds[i]];
+      // Get the release date
+      string memory released = _documentReleases[_documentIds[i]];
+      // If the year matches
+      if (filter == keccak256(bytes(_getYear(released)))
+        // and, If it doesn't exist in the array
+        && !_stringArrayExists(
+          keccak256(bytes(data.department)), 
+          departments
+        )
+      ) {
+        // Add it
+        departments[departments.length - 1] = data.department;
+      }
+    }
+    return departments;
   }
 
+  /**
+   * @dev Returns agencies for a given year and department.
+   */
   function getAgencyCategory(
     string memory year, 
     string memory department
   ) 
-    public view returns (string[] memory) 
+    external view returns (string[] memory) 
   {
-    
+    // Serialize the filters for comparison
+    bytes32 yearFilter = keccak256(bytes(year));
+    bytes32 departmentFilter = keccak256(bytes(department));
+    // Make an unsized array
+    string[] memory agencies;
+    // Loop through all documents
+    for (uint256 i = 0; i < _documentIds.length; i++) {
+      // Get the data
+      Metadata memory data = _documentData[_documentIds[i]];
+      // Get the release date
+      string memory released = _documentReleases[_documentIds[i]];
+      // If the year matches
+      if (yearFilter == keccak256(bytes(_getYear(released)))
+        // and, If the department matches
+        && departmentFilter == keccak256(bytes(data.department))
+        // and, If it doesn't exist in the array
+        && !_stringArrayExists(
+          keccak256(bytes(data.agency)), 
+          agencies
+        )
+      ) {
+        // Add it
+        agencies[agencies.length - 1] = data.agency;
+      }
+    }
+    return agencies;
   }
 
+  /**
+   * @dev Returns operating units for a given year, department, and agency.
+   */
   function getOperatingUnitCategory(
     string memory year, 
     string memory department, 
     string memory agency
   ) 
-    public view returns (string[] memory) 
+    external view returns (string[] memory) 
   {
-    
+    // Serialize the filters for comparison
+    bytes32 yearFilter = keccak256(bytes(year));
+    bytes32 departmentFilter = keccak256(bytes(department));
+    bytes32 agencyFilter = keccak256(bytes(agency));
+    // Make an unsized array
+    string[] memory units;
+    // Loop through all documents
+    for (uint256 i = 0; i < _documentIds.length; i++) {
+      // Get the data
+      Metadata memory data = _documentData[_documentIds[i]];
+      // Get the release date
+      string memory released = _documentReleases[_documentIds[i]];
+      // If the year matches
+      if (yearFilter == keccak256(bytes(_getYear(released)))
+        // and, If the department matches
+        && departmentFilter == keccak256(bytes(data.department))
+        // and, If the agency matches
+        && agencyFilter == keccak256(bytes(data.agency))
+      ) {
+        // Loop through the operating units
+        for (uint j = 0; j < data.operatingUnit.length; j++) {
+          // If it doesn't exist in the array
+          if (!_stringArrayExists(
+            keccak256(bytes(data.operatingUnit[j])), 
+            units
+          )) {
+            // Add it
+            units[units.length - 1] = data.operatingUnit[j];
+          }
+        }
+      }
+    }
+    return units;
   }
 
   function getAllFilters(
     string memory filterType, 
-    uint256 start, 
-    uint256 count
+    uint256 skip, 
+    uint256 take
   ) 
-    public view returns (string[] memory) 
+    external view returns (string[] memory) 
   {
-    
+    bytes32 filterHash = keccak256(bytes(filterType));
+    if(filterHash == keccak256(bytes("department"))){
+      return _getDepartments(skip, take);
+    } else if(filterHash == keccak256(bytes("agency"))){
+      return _getAgencies(skip, take);
+    } else if(filterHash == keccak256(bytes("year"))){
+      return _getYears(skip, take);
+    } else if(filterHash == keccak256(bytes("operatingUnit"))){
+      return _getOperatingUnits(skip, take);
+    } else {
+      revert InvalidFilter(filterHash);
+    }
   }
 
   function getDocumentsUnderFilter(
     string memory filter, 
-    uint256 start, 
-    uint256 count
+    uint256 skip, 
+    uint256 take
   ) 
     public view returns (string[] memory) 
   {
-    
+    // Make an unsized array
+    string[] memory ids;
+    // Setup paginators
+    uint256 skipped = 0;
+    // Serialize the filter for comparison
+    bytes32 filterHash = keccak256(bytes(filter));
+    // Loop through all documents
+    for (uint256 i = 0; i < _documentIds.length; i++) {
+      if (_hasFilter(_documentIds[i], filterHash)) {
+        // If we haven't skipped enough yet
+        if ((skipped++) < skip) {
+          continue;
+        }
+        // Add it
+        ids[ids.length - 1] = _documentIds[i];
+        // If we have taken enough, break
+        if (take > 0 && ids.length >= take) {
+          break;
+        }
+      }
+    }
+
+    return ids;
   }
 
-  function getDocumentIds(uint256 start, uint256 count) 
-    public view returns (string[] memory) 
+  function getDocumentIds(uint256 skip, uint256 take) 
+    external view returns (string[] memory) 
   {
-    
+    // Make unsized array
+    string[] memory ids;
+    // Setup paginators
+    uint256 taken = 0;
+    // Loop through the document ids
+    for (uint256 i = skip; i < _documentIds.length; i++) {
+      // If we haven't skipped enough yet
+      if (i < skip) {
+        continue;
+      }
+      // Add it
+      ids[ids.length - 1] = _documentIds[i];
+      // If we have taken enough, break
+      if (take > 0 && ++taken >= take) {
+        break;
+      }
+    }
+    return ids;
   }
 
   // ============ Read Methods ============
@@ -235,22 +459,214 @@ contract NCADocument is ITokenMetadata {
     return tokenId;
   }
 
-  // ============ Private Methods ============
+  /**
+   * @dev Records a view for a given document ID.
+   */
+  function viewed(string memory documentId) external {
+    // If the recently viewed list is full
+    if (_recentlyViewed.length > 4) {
+      // Remove the first element and shift all elements left
+      for (uint i = 0; i < _recentlyViewed.length - 1; i++) {
+        _recentlyViewed[i] = _recentlyViewed[i + 1];
+      }
+      // Remove the last element (duplicate)
+      _recentlyViewed[_recentlyViewed.length - 1] = documentId;
+    } else {
+      // Add new item at the end
+      _recentlyViewed.push(documentId);
+    }
+    _documentViews[documentId]++;
+  }
+
+  // ============ Readonly Helpers ============
 
   /**
-   * @dev Checks if a string exists in an array of strings.
+   * @dev Returns a list of agencies.
    */
-  function _stringArrayExists(
-    string memory value, 
-    string[] memory array
-  ) private pure returns (bool) {
-    for (uint256 i = 0; i < array.length; i++) {
-      if (keccak256(bytes(array[i])) == keccak256(bytes(value))) {
+  function _getAgencies(uint256 skip, uint256 take) 
+    private view returns (string[] memory) 
+  {
+    // Make an unsized array
+    string[] memory agencies;
+    // Setup paginators
+    uint256 skipped = 0;
+    // Loop through all documents
+    for (uint256 i = 0; i < _documentIds.length; i++) {
+      // Get the data
+      Metadata memory data = _documentData[_documentIds[i]];
+      // Get the agency
+      string memory agency = data.agency;
+      // If it doesn't exist in the array
+      if (!_stringArrayExists(keccak256(bytes(agency)), agencies)) {
+        // If we haven't skipped enough yet
+        if ((skipped++) < skip) {
+          continue;
+        }
+        // Add it
+        agencies[agencies.length - 1] = agency;
+        // If we have taken enough, break
+        if (take > 0 && agencies.length >= take) {
+          break;
+        }
+      }
+    }
+    return agencies;
+  }
+
+  /**
+   * @dev Returns a list of departments.
+   */
+  function _getDepartments(uint256 skip, uint256 take) 
+    private view returns (string[] memory) 
+  {
+    // Make an unsized array
+    string[] memory departments;
+    // Setup paginators
+    uint256 skipped = 0;
+    // Loop through all documents
+    for (uint256 i = 0; i < _documentIds.length; i++) {
+      // Get the data
+      Metadata memory data = _documentData[_documentIds[i]];
+      // Get the department
+      string memory department = data.department;
+      // If it doesn't exist in the array
+      if (!_stringArrayExists(
+        keccak256(bytes(department)), 
+        departments
+      )) {
+        // If we haven't skipped enough yet
+        if ((skipped++) < skip) {
+          continue;
+        }
+        // Add it
+        departments[departments.length - 1] = department;
+        // If we have taken enough, break
+        if (take > 0 && departments.length >= take) {
+          break;
+        }
+      }
+    }
+
+    return departments;
+  }
+
+  /**
+   * @dev Returns a list of operating units.
+   */
+  function _getOperatingUnits(uint256 skip, uint256 take) 
+    private view returns (string[] memory) 
+  {
+    // Make an unsized array
+    string[] memory units;
+    // Setup paginators
+    uint256 skipped = 0;
+    // Loop through all documents
+    for (uint256 i = 0; i < _documentIds.length; i++) {
+      // Get the data
+      Metadata memory data = _documentData[_documentIds[i]];
+      // Loop through the operating units
+      for (uint j = 0; j < data.operatingUnit.length; j++) {
+        // If it doesn't exist in the array
+        if (!_stringArrayExists(
+          keccak256(bytes(data.operatingUnit[j])), 
+          units
+        )) {
+          // If we haven't skipped enough yet
+          if ((skipped++) < skip) {
+            continue;
+          }
+          // Add it
+          units[units.length - 1] = data.operatingUnit[j];
+          // If we have taken enough, break
+          if (take > 0 && units.length >= take) {
+            break;
+          }
+        }
+      }
+    }
+    return units;
+  }
+
+  /**
+   * @dev Returns a list of years.
+   */
+  function _getYears(uint256 skip, uint256 take) 
+    public view returns (string[] memory) 
+  {
+    // Make an unsized array
+    string[] memory anums;
+    // Setup paginators
+    uint256 skipped = 0;
+    // Loop through all documents
+    for (uint256 i = 0; i < _documentIds.length; i++) {
+      // Get the release date
+      string memory released = _documentReleases[_documentIds[i]];
+      // Get the year
+      string memory year = _getYear(released);
+      // If it doesn't exist in the array
+      if (!_stringArrayExists(keccak256(bytes(year)), anums)) {
+        // If we haven't skipped enough yet
+        if ((skipped++) < skip) {
+          continue;
+        }
+        // Add it
+        anums[anums.length - 1] = year;
+        // If we have taken enough, break
+        if (take > 0 && anums.length >= take) {
+          break;
+        }
+      }
+    }
+
+    return anums;
+  }
+
+  /**
+   * @dev Checks if a document has a specific filter (department, agency, unit, year).
+   */
+  function _hasFilter(string memory documentId, bytes32 filter) 
+    private view returns (bool) 
+  {
+    // Get the data
+    Metadata memory data = _documentData[documentId];
+    // Check if the filter exists in the department
+    if (filter == keccak256(bytes(data.department))) {
+      return true;
+    }
+    // Check if the filter exists in the agency
+    if (filter == keccak256(bytes(data.agency))) {
+      return true;
+    }
+    // Check if release year matches the filter
+    string memory year = _getYear(data.releasedDate);
+    if (filter == keccak256(bytes(year))) {
+      return true;
+    }
+    // Check if the filter exists in the operating units
+    for (uint i = 0; i < data.operatingUnit.length; i++) {
+      if (filter == keccak256(bytes(data.operatingUnit[i]))) {
         return true;
       }
     }
     return false;
   }
+
+  /**
+   * @dev Checks if a string exists in an array of strings.
+   */
+  function _stringArrayExists(
+    bytes32 value, 
+    string[] memory array
+  ) private pure returns (bool) {
+    for (uint256 i = 0; i < array.length; i++) {
+      if (keccak256(bytes(array[i])) == value) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // ============ Write Helpers ============
 
   /**
    * @dev Returns the year (first 4 characters) from a date string.
@@ -273,93 +689,6 @@ contract NCADocument is ITokenMetadata {
     }
     // Return the year as a string
     return string(year);
-  }
-
-  /**
-   * @dev Returns a list of departments.
-   */
-  function _getDepartments() private view returns (string[] memory) {
-    // Make an unsized array
-    string[] memory departments;
-    // Loop through all documents
-    for (uint256 i = 0; i < _documentIds.length; i++) {
-      // Get the data
-      Metadata memory data = _documentData[_documentIds[i]];
-      // Get the department
-      string memory department = data.department;
-      // If it doesn't exist in the array
-      if (!_stringArrayExists(department, departments)) {
-        // Add it
-        departments[departments.length - 1] = department;
-      }
-    }
-
-    return departments;
-  }
-
-  /**
-   * @dev Returns a list of agencies.
-   */
-  function _getAgencies() private view returns (string[] memory) {
-    // Make an unsized array
-    string[] memory agencies;
-    // Loop through all documents
-    for (uint256 i = 0; i < _documentIds.length; i++) {
-      // Get the data
-      Metadata memory data = _documentData[_documentIds[i]];
-      // Get the agency
-      string memory agency = data.agency;
-      // If it doesn't exist in the array
-      if (!_stringArrayExists(agency, agencies)) {
-        // Add it
-        agencies[agencies.length - 1] = agency;
-      }
-    }
-    return agencies;
-  }
-
-  /**
-   * @dev Returns a list of operating units.
-   */
-  function _getOperatingUnits() private view returns (string[] memory) {
-    // Make an unsized array
-    string[] memory units;
-    // Loop through all documents
-    for (uint256 i = 0; i < _documentIds.length; i++) {
-      // Get the data
-      Metadata memory data = _documentData[_documentIds[i]];
-      // Loop through the operating units
-      for (uint j = 0; j < data.operatingUnit.length; j++) {
-        // If it doesn't exist in the array
-        if (!_stringArrayExists(data.operatingUnit[j], units)) {
-          // Add it
-          units[units.length - 1] = data.operatingUnit[j];
-        }
-      }
-    }
-    return units;
-  }
-
-  /**
-   * @dev Returns a list of years.
-   */
-  function _getYears() public view returns (string[] memory) {
-    // Make an unsized array
-    string[] memory anums;
-    // Loop through all documents
-    for (uint256 i = 0; i < _documentIds.length; i++) {
-      // Get the release date
-      string memory released = _documentReleases[_documentIds[i]];
-      // Get the year
-      string memory year = _getYear(released);
-      // If it doesn't exist in the array
-      if (!_stringArrayExists(year, anums)) {
-        // Add it
-        anums[anums.length - 1] = year;
-      }
-    }
-
-    return anums;
   }
 
   /**
