@@ -128,6 +128,18 @@ contract Document is
     _mintAndMap(data, recipient);
   }
 
+  /**
+   * @dev Override to return the total supply.
+   */
+  function totalSupply() 
+    public 
+    view 
+    override(IERC721Mintable, ERC721DocumentSpec) 
+    returns(uint256) 
+  {
+    return super.totalSupply();
+  }
+
   // ============ Internal Methods ============
 
   /**

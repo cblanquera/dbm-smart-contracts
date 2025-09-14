@@ -1,36 +1,34 @@
 const { expect } = require('chai');
 require('dotenv').config()
 
-if (process.env.BLOCKCHAIN_NETWORK != 'hardhat') {
-  console.error('Exited testing with network:', process.env.BLOCKCHAIN_NETWORK)
+if (process.env.DEFAULT_NETWORK !== 'hardhat') {
+  console.error('Exited testing with network:', process.env.DEFAULT_NETWORK);
   process.exit(1);
 }
 
 async function deploy(name, ...params) {
-  //deploy the contract
   const ContractFactory = await ethers.getContractFactory(name);
   const contract = await ContractFactory.deploy(...params);
-  await contract.deployed();
-
+  await contract.waitForDeployment();
   return contract;
 }
 
 async function bindContract(key, name, contract, signers) {
-  //attach contracts
+  const address = await contract.getAddress();
   for (let i = 0; i < signers.length; i++) {
-    const Contract = await ethers.getContractFactory(name, signers[i]);
-    signers[i][key] = await Contract.attach(contract.address);
+    const Factory = await ethers.getContractFactory(name, signers[i]);
+    signers[i][key] = Factory.attach(address);
   }
-
   return signers;
 }
 
 function getRole(name) {
   if (!name || name === 'DEFAULT_ADMIN_ROLE') {
-    return '0x0000000000000000000000000000000000000000000000000000000000000000';
+    return '0x' + '00'.repeat(32);
   }
-
-  return '0x' + Buffer.from(ethers.utils.solidityKeccak256(['string'], [name]).slice(2), 'hex').toString('hex');
+  // OpenZeppelin role IDs are keccak256 of the string
+  // v6: use ethers.id (keccak256(utf8))
+  return ethers.id(name);
 }
 
 module.exports = {

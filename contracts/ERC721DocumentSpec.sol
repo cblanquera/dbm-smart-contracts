@@ -96,7 +96,7 @@ abstract contract ERC721DocumentSpec is
   /**
    * @dev Shows the overall amount of tokens generated in the contract
    */
-  function totalSupply() public view returns(uint256) {
+  function totalSupply() public virtual view returns(uint256) {
     return _lastTokenId;
   }
 

@@ -12,30 +12,33 @@ const env = {
     pk: process.env.POLYGON_PK || '',
     scan: process.env.POLYGON_SCAN || ''
   },
-  cmc: process.env.CMC_KEY || ''
+  cmc: process.env.CMC_KEY || '',
+  network: process.env.DEFAULT_NETWORK || 'hardhat'
 };
 
+/**
+ * @type import('hardhat/config').HardhatUserConfig
+ */
 module.exports = {
-  defaultNetwork: 'testnet',
+  defaultNetwork: env.network,
   networks: {
     hardhat: {
-      chainId: 1011
+      chainId: 1337,
+      mining: {
+        //set this to false if you want localhost to mimick a real blockchain
+        auto: true,
+        interval: 5000
+      }
     },
-    testnet: {
+    amoy: {
       url: env.amoy.rpc,
       accounts: env.amoy.pk !== '' ? [ env.amoy.pk ] : [],
       chainId: 80002
     },
-    mainnet: {
+    polygon: {
       url: env.polygon.rpc,
       accounts: env.polygon.pk !== '' ? [ env.polygon.pk ] : [],
       chainId: 137
-    },
-  },
-  etherscan: {
-    apiKey: {
-      testnet: env.amoy.scan,
-      mainnet: env.polygon.scan
     }
   },
   solidity: {
@@ -44,22 +47,28 @@ module.exports = {
       optimizer: {
         enabled: true,
         runs: 200,
-      },
-    },
+      }
+    }
   },
-  // Other configurations like paths, mocha, etc. can be added here
   paths: {
     sources: './contracts',
     tests: './tests',
     cache: './cache',
     artifacts: './artifacts'
   },
+  etherscan: {
+    apiKey: {
+      testnet: env.amoy.scan,
+      mainnet: env.polygon.scan
+    }
+  },
   mocha: {
     timeout: 40000
   },
   gasReporter: {
-    currency: 'USD',
+    L1: 'polygon',
+    currency: 'PHP',
     coinmarketcap: env.cmc,
-    gasPrice: 20
+    gasPrice: 30
   }
 };
