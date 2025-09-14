@@ -260,9 +260,7 @@ abstract contract ERC721Spec is
     address to, 
     uint256 tokenId, 
     bytes memory data
-  ) 
-    public virtual 
-  {
+  ) public virtual {
     transferFrom(from, to, tokenId);
     ERC721Utils.checkOnERC721Received(_msgSender(), from, to, tokenId, data);
   }
@@ -306,9 +304,7 @@ abstract contract ERC721Spec is
     address to, 
     uint256 tokenId, 
     bytes memory data
-  ) 
-    internal virtual 
-  {
+  ) internal virtual {
     _transfer(from, to, tokenId);
     ERC721Utils.checkOnERC721Received(
       _msgSender(), 

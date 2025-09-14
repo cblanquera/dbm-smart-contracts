@@ -2,12 +2,29 @@
 
 pragma solidity ^0.8.29;
 
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
+import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import { Verifier } from "../utils/Verifier.sol";
+
 import { INCADocument } from "./INCADocument.sol";
 import { IERC721Mintable } from "../IERC721Mintable.sol";
 
+error InvalidProof();
+error InvalidSize();
 error TokenExists(uint256 tokenId);
 
-contract NCADocument is INCADocument {
+contract NCADocument is 
+  INCADocument, 
+  Ownable,
+  AccessControl,
+  ReentrancyGuard 
+{
+  // ============ Constants ============
+
+  //additional roles
+  bytes32 private constant _MINTER_ROLE = keccak256("MINTER_ROLE");
+
   // ============ Storage ============
 
   IERC721Mintable public minter;
@@ -43,9 +60,14 @@ contract NCADocument is INCADocument {
   /**
    * @dev Sets the minter contract.
    */
-  constructor(string memory baseURI, IERC721Mintable minterContract) {
+  constructor(
+    string memory baseURI, 
+    IERC721Mintable minterContract,
+    address admin
+  ) Ownable(admin) {
     _baseURI = baseURI;
     minter = minterContract;
+    _grantRole(DEFAULT_ADMIN_ROLE, admin);
   }
 
   // ============ Read Methods ============
@@ -115,6 +137,20 @@ contract NCADocument is INCADocument {
   // ============ Write Methods ============
 
   /**
+   * @dev Batch mints a new token to the `recipient` using the minter 
+   * contract. Maps `file`, `data`, and `released` to the document.
+   */
+  function batch(
+    address recipient,
+    string[] memory files,
+    Metadata[] memory data,
+    string[] memory released
+  ) external nonReentrant onlyRole(_MINTER_ROLE) {
+    // Batch mint the tokens and tokenize the documents
+    _batchMintAndTokenize(recipient, files, data, released);
+  }
+
+  /**
    * @dev Mints a new token to the `recipient` using the minter 
    * contract. Maps `file`, `data`, and `released` to the document.
    */
@@ -123,42 +159,115 @@ contract NCADocument is INCADocument {
     string memory file,
     Metadata memory data,
     string memory released
-  ) external returns(uint256) {
-    // Get the document id
-    string memory documentId = data.ncaNumber;
-    // If the document exists
-    if (documentExists[documentId]) {
-      // If the pair does not exist
-      if(!_pairExists(documentId, data.operatingUnit[0], data.amount[0])) {
-        // Add the new pair
-        _pushData(documentId, data.operatingUnit[0], data.amount[0]);
-      }
-    //otherwise dont change the document mapping
-    } else {
-      // Map document ID (ex. NCA-XXXX-12-3456789) to data
-      _documentData[documentId] = data;
-      // Map document ID to IPFS CIDs
-      documentFiles[documentId] = file;
-      // Map document ID to release dates
-      documentReleases[documentId] = released;
-      // Map the document id as existing
-      documentExists[documentId] = true;
-    }
-    // Mint the token and get the token id
-    uint256 tokenId = minter.mint(recipient);
-    // Error if the token already exists (should never happen)
-    if (tokenExists[tokenId]) {
-      revert TokenExists(tokenId);
-    }
-    // Map the token id as existing
-    tokenExists[tokenId] = true;
-    // Map token ID to document IDs
-    tokenDocuments[tokenId] = documentId;
+  ) external nonReentrant onlyRole(_MINTER_ROLE) {
+    // Mint the token and tokenize the document
+    _mintAndTokenize(recipient, file, data, released);
+  }
 
-    return tokenId;
+  /**
+   * @dev Allows anyone to mint tokens that was approved by the minter 
+   * role. (ie. moves the burden of gas to the minter)
+   */
+  function mint(
+    address recipient, 
+    string memory file,
+    Metadata memory data,
+    string memory released,
+    bytes memory proof
+  ) external nonReentrant {
+    // Make sure the minter signed this off
+    if (!hasRole(_MINTER_ROLE, Verifier.author(
+      abi.encodePacked("mint", file, recipient), 
+      proof
+    ))) {
+      revert InvalidProof();
+    }
+    // Mint the token and tokenize the document
+    _mintAndTokenize(recipient, file, data, released);
+  }
+
+  /**
+   * @dev Maps `tokenId`, `file`, `data`, and `released` to the document.
+   * This is used in the case platforms want to facilitate the mint 
+   * (ie. to save on gas).
+   */
+  function tokenize(
+    uint256 tokenId,
+    string memory file,
+    Metadata memory data,
+    string memory released
+  ) external onlyRole(_MINTER_ROLE) nonReentrant {
+    _tokenize(tokenId, file, data, released);
+  }
+
+  /**
+   * @dev Allows anyone to mint tokens that was approved by the minter 
+   * role. (ie. moves the burden of gas to the minter)
+   */
+  function tokenize(
+    uint256 tokenId,
+    string memory file,
+    Metadata memory data,
+    string memory released,
+    bytes memory proof
+  ) external nonReentrant {
+    // Make sure the minter signed this off
+    if (!hasRole(_MINTER_ROLE, Verifier.author(
+      abi.encodePacked("tokenize", file, _msgSender()), 
+      proof
+    ))) {
+      revert InvalidProof();
+    }
+
+    _tokenize(tokenId, file, data, released);
   }
 
   // ============ Internal Methods ============
+
+  /**
+   * @dev Batch mints new tokens to the `recipient` using the minter 
+   * contract. Maps `file`, `data`, and `released` to each document.
+   */
+  function _batchMintAndTokenize(
+    address recipient,
+    string[] memory files,
+    Metadata[] memory data,
+    string[] memory released
+  ) internal {
+    // Make sure the sizes match
+    if (files.length != data.length
+      || files.length != released.length
+      || files.length == 0
+    ) {
+      revert InvalidSize();
+    }
+    // Get the starting token ID
+    uint256 startTokenId = minter.totalSupply() + 1;
+    // Mint the token (all in one go)
+    minter.batch(recipient, files.length);
+
+    // For each token
+    for (uint i = 0; i < files.length; i++) {
+      // Tokenize the document
+      _tokenize(startTokenId + i, files[i], data[i], released[i]);
+    }
+  }
+
+  /**
+   * @dev Mints a new token to the `recipient` using the minter 
+   * contract. Maps `file`, `data`, and `released` to the document.
+   */
+  function _mintAndTokenize(
+    address recipient,
+    string memory file,
+    Metadata memory data,
+    string memory released
+  ) internal {
+    // Mint the token
+    minter.mint(recipient);
+    // Tokenize the document
+    _tokenize(minter.totalSupply(), file, data, released);
+  }
 
   /**
    * @dev Checks if a given operating unit and amount pair exists for 
@@ -168,9 +277,7 @@ contract NCADocument is INCADocument {
     string memory documentId, 
     string memory unit, 
     string memory amount
-  ) 
-    internal view returns(bool) 
-  {
+  ) private view returns(bool) {
     // Get the data
     Metadata storage existing = _documentData[documentId];
     // Hash the inputs for comparison (in the loop)
@@ -195,10 +302,47 @@ contract NCADocument is INCADocument {
     string memory documentId, 
     string memory unit, 
     string memory amount
-  )
-    internal 
-  {
+  ) private {
     _documentData[documentId].operatingUnit.push(unit);
     _documentData[documentId].amount.push(amount);
+  }
+
+  /**
+   * @dev Maps `tokenId`, `file`, `data`, and `released` to the document.
+   */
+  function _tokenize(
+    uint256 tokenId,
+    string memory file,
+    Metadata memory data,
+    string memory released
+  ) private {
+    // Error if the token already exists (should never happen)
+    if (tokenExists[tokenId]) {
+      revert TokenExists(tokenId);
+    }
+    // Get the document id
+    string memory documentId = data.ncaNumber;
+    // If the document exists
+    if (documentExists[documentId]) {
+      // If the pair does not exist
+      if(!_pairExists(documentId, data.operatingUnit[0], data.amount[0])) {
+        // Add the new pair
+        _pushData(documentId, data.operatingUnit[0], data.amount[0]);
+      }
+    //otherwise dont change the document mapping
+    } else {
+      // Map document ID (ex. NCA-XXXX-12-3456789) to data
+      _documentData[documentId] = data;
+      // Map document ID to IPFS CIDs
+      documentFiles[documentId] = file;
+      // Map document ID to release dates
+      documentReleases[documentId] = released;
+      // Map the document id as existing
+      documentExists[documentId] = true;
+    }
+    // Map the token id as existing
+    tokenExists[tokenId] = true;
+    // Map token ID to document IDs
+    tokenDocuments[tokenId] = documentId;
   }
 }

@@ -3,8 +3,7 @@
 pragma solidity ^0.8.29;
 
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
+import { Verifier } from "./utils/Verifier.sol";
 
 import { IERC721Mintable } from "./IERC721Mintable.sol";
 import { 
@@ -31,6 +30,7 @@ contract Document is
   bytes32 private constant _MINTER_ROLE = keccak256("MINTER_ROLE");
 
   // ============ Deploy ============
+
   /**
    * @dev Sets the data contract and the default owner.
    */
@@ -42,62 +42,58 @@ contract Document is
   // ============ Write Methods ============
 
   /**
+   * @dev Allows ITokenMetadata to batch mint to `recipient`. This is a 
+   * 2FA because the ITokenMetadata also must be the minter role. 
+   * This ensures that only audited metadata contracts can mint.
+   */
+  function batch(address recipient, uint256 amount) 
+    external onlyRole(_MINTER_ROLE) nonReentrant
+  {
+    _batchMintAndMap(IERC721TokenMetadata(_msgSender()), recipient, amount);
+  }
+
+  /**
+   * @dev Allows the minter role to batch mint to `recipient` with 
+   * specific `data`. This is used in the case platforms want to 
+   * facilitate the mint (ie. to save on gas).
+   */
+  function batch(IERC721TokenMetadata data, address recipient, uint256 amount) 
+    external onlyRole(_MINTER_ROLE) nonReentrant
+  {
+    // Mint the token and map the metadata
+    _batchMintAndMap(data, recipient, amount);
+  }
+
+  /**
+   * @dev Allows anyone to batch mint tokens that was approved by the 
+   * minter role. (ie. moves the burden of gas to the minter)
+   */
+  function batch(
+    IERC721TokenMetadata data, 
+    address recipient,
+    uint256 amount, 
+    bytes memory proof
+  ) external nonReentrant {
+    // Make sure the minter signed this off
+    if (!hasRole(_MINTER_ROLE, Verifier.author(
+      abi.encodePacked("batch", address(data), recipient), 
+      proof
+    ))) {
+      revert InvalidProof();
+    }
+    // Mint the token and map the metadata
+    _batchMintAndMap(data, recipient, amount);
+  }
+
+  /**
    * @dev Allows ITokenMetadata to mint to `recipient`. This is a 
    * 2FA because the ITokenMetadata also must be the minter role. 
    * This ensures that only audited metadata contracts can mint.
    */
   function mint(address recipient) 
-    external onlyRole(_MINTER_ROLE) nonReentrant returns(uint256) 
+    external onlyRole(_MINTER_ROLE) nonReentrant
   {
-    // Get the next token ID
-    uint256 tokenId = super.totalSupply() + 1;
-    // Mint the token
-    _safeMint(recipient, tokenId);
-    // Map the token metadata
-    _mapData(tokenId, IERC721TokenMetadata(_msgSender()));
-    return tokenId;
-  }
-
-  /**
-   * @dev Allows anyone to mint tokens that was approved by the owner.
-   * (ie. moves the burden of gas to the minter)
-   */
-  function mint(
-    IERC721TokenMetadata metadata, 
-    address recipient, 
-    bytes memory proof
-  ) 
-    external nonReentrant 
-  {
-    // Note: We are doing it this way instead of creating a variable...
-    //4. Make sure the minter signed this off
-    if (!hasRole(
-      _MINTER_ROLE, 
-      // 3. Then recover the signer (address)
-      ECDSA.recover(
-        // 2. Then convert to bytes32
-        MessageHashUtils.toEthSignedMessageHash(
-          // 1. Make a message hash
-          keccak256(
-            abi.encodePacked(
-              "mint", 
-              recipient, 
-              address(metadata)
-            )
-          )
-        ),
-        proof
-      )
-    )) {
-      revert InvalidProof();
-    }
-
-    // Get the next token ID
-    uint256 tokenId = super.totalSupply() + 1;
-    // Mint the token
-    _safeMint(recipient, tokenId);
-    // Map the token metadata
-    _mapData(tokenId, metadata);
+    _mintAndMap(IERC721TokenMetadata(_msgSender()), recipient);
   }
 
   /**
@@ -106,14 +102,66 @@ contract Document is
    * facilitate the mint (ie. to save on gas).
    */
   function mint(IERC721TokenMetadata data, address recipient) 
-    external onlyRole(_MINTER_ROLE) nonReentrant returns(uint256) 
+    external onlyRole(_MINTER_ROLE) nonReentrant
   {
+    // Mint the token and map the metadata
+    _mintAndMap(data, recipient);
+  }
+
+  /**
+   * @dev Allows anyone to mint tokens that was approved by the minter 
+   * role. (ie. moves the burden of gas to the minter)
+   */
+  function mint(
+    IERC721TokenMetadata data, 
+    address recipient, 
+    bytes memory proof
+  ) external nonReentrant {
+    // Make sure the minter signed this off
+    if (!hasRole(_MINTER_ROLE, Verifier.author(
+      abi.encodePacked("mint", address(data), recipient), 
+      proof
+    ))) {
+      revert InvalidProof();
+    }
+    // Mint the token and map the metadata
+    _mintAndMap(data, recipient);
+  }
+
+  // ============ Internal Methods ============
+
+  /**
+   * @dev Batch mints token and maps its metadata.
+   */
+  function _batchMintAndMap(
+    IERC721TokenMetadata data, 
+    address recipient, 
+    uint256 amount
+  ) internal {
+    // Get the start token ID
+    uint256 startTokenId = _lastTokenId + 1;
+    // Then, mint the amount of tokens
+    _mintAmount(recipient, amount, "", false);
+    // Then, get the ending token ID
+    uint256 endTokenId = _lastTokenId;
+    do {
+      // Map the token metadata
+      _mapData(startTokenId++, data);
+    } while (startTokenId <= endTokenId);
+  }
+
+  /**
+   * @dev Mints token and maps its metadata.
+   */
+  function _mintAndMap(
+    IERC721TokenMetadata data, 
+    address recipient
+  ) internal {
     // Get the next token ID
-    uint256 tokenId = super.totalSupply() + 1;
+    uint256 tokenId = _lastTokenId + 1;
     // Mint the token
     _safeMint(recipient, tokenId);
     // Map the token metadata
     _mapData(tokenId, data);
-    return tokenId;
   }
 }

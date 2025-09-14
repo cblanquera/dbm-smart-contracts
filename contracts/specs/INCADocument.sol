@@ -105,17 +105,4 @@ interface INCADocument is IERC721TokenMetadata {
    */
   function tokenURI(uint256 tokenId) 
     external view returns(string memory);
-
-  // ============ Write Methods ============
-
-  /**
-   * @dev Mints a new token to the `recipient` using the minter 
-   * contract. Maps `file`, `data`, and `released` to the document.
-   */
-  function mint(
-    address recipient,
-    string memory file,
-    Metadata memory data,
-    string memory released
-  ) external returns(uint256);
 }

@@ -7,8 +7,10 @@ import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol"
 
 import { IERC721ContractMetadata } from "./IERC721ContractMetadata.sol";
 import { IERC721TokenMetadata } from "./IERC721TokenMetadata.sol";
+import { ERC721Utils } from "@openzeppelin/contracts/token/ERC721/utils/ERC721Utils.sol";
 import { ERC721Spec } from "./ERC721Spec.sol";
 
+error InvalidAmount();
 error MetadataNotSet();
 error MetadataAlreadySet();
 
@@ -41,7 +43,7 @@ abstract contract ERC721DocumentSpec is
   // ============ Storage ============
 
   // The last token id minted
-  uint256 private _lastTokenId;
+  uint256 internal _lastTokenId;
   // Contract Metadata interface
   IERC721ContractMetadata internal _contractData;
   // Mapping of token ID to TokenMetadata contract
@@ -125,25 +127,7 @@ abstract contract ERC721DocumentSpec is
     _contractData = data;
   }
 
-  // ============ Overrides ============
-
-  /**
-   * @dev Override to increment the tokenId on mints
-   */
-  function _update(address to, uint256 tokenId, address auth) 
-    internal virtual override returns (address) 
-  {
-    // Do the normal update logic and get the previous owner
-    address previousOwner = super._update(to, tokenId, auth);
-    // If the previous owner was address(0) and we are sending to a 
-    // valid address, then we are minting a new token
-    if (previousOwner == address(0) && to != address(0)) {
-      // Increment the tokenId for the next mint
-      _lastTokenId++;
-    }
-
-    return previousOwner;
-  }
+  // ============ Internal Methods ============
 
   /**
    * @dev Maps a tokenId to a TokenMetadata contract
@@ -164,5 +148,81 @@ abstract contract ERC721DocumentSpec is
     
     // Map the metadata
     _tokenData[tokenId] = data;
+  }
+
+  /**
+   * @dev Mints `amount` of tokens and transfers them to `to`.
+   * If `safeCheck` is true, it will check if the receiver is a 
+   * contract and if so, check if it implements `onERC721Received`.
+   * This is an internal method that doesn't do any permission checks.
+   * It is up to the caller to do the necessary checks.
+   */
+  function _mintAmount(
+    address to, 
+    uint256 amount, 
+    bytes memory data,
+    bool safeCheck
+  ) internal virtual {
+    // Make sure amount is not zero
+    if(amount == 0) {
+      revert InvalidAmount();
+    }
+    // Can't mint to zero address
+    if (to == address(0)) {
+      revert ERC721InvalidReceiver(address(0));
+    }
+    // Get the starting and ending index
+    // (must be done before we increment _lastTokenId)
+    uint256 updatedIndex = _lastTokenId + 1;
+    uint256 endIndex = updatedIndex + amount;
+    unchecked {
+      // Then, bulk increment the last token id
+      _lastTokenId += amount;
+      // Bulk increment the balance of the receiver
+      _balances[to] += amount;
+    }
+    //if do safe check and,
+    //check if contract one time (instead of loop)
+    //see: @openzep/utils/Address.sol
+    if (safeCheck && to.code.length > 0) {
+      //loop emit transfer and received check
+      do {
+        _owners[updatedIndex] = to;
+        emit Transfer(address(0), to, updatedIndex);
+        ERC721Utils.checkOnERC721Received(
+          _msgSender(), 
+          address(0), 
+          to, 
+          updatedIndex++, 
+          data
+        );
+      } while (updatedIndex != endIndex);
+      return;
+    }
+
+    do {
+      _owners[updatedIndex] = to;
+      emit Transfer(address(0), to, updatedIndex++);
+    } while (updatedIndex != endIndex);
+  }
+
+  /**
+   * @dev Override to increment the tokenId on mints
+   */
+  function _update(address to, uint256 tokenId, address auth) 
+    internal virtual override returns (address) 
+  {
+    // Do the normal update logic and get the previous owner
+    address previousOwner = super._update(to, tokenId, auth);
+    // If the previous owner was address(0) and we are sending to a 
+    // valid address, then we are minting a new token
+    if (previousOwner == address(0) && to != address(0)) {
+      // Increment the tokenId for the next mint
+      unchecked {
+        _lastTokenId++;
+      }
+    }
+
+    return previousOwner;
   }
 }
