@@ -24,7 +24,7 @@ import { ERC721Utils } from "@openzeppelin/contracts/token/ERC721/utils/ERC721Ut
  * You must provide `name()` `symbol()` and `tokenURI(uint256 tokenId)`
  * to conform with IERC721Metadata
  */
-abstract contract ERC721Abstract is 
+abstract contract ERC721Spec is 
   Context, 
   ERC165, 
   IERC721, 

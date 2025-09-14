@@ -4,20 +4,24 @@ pragma solidity ^0.8.29;
 
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-import { IDocumentMintable } from "./IDocumentMintable.sol";
+import { IERC721Mintable } from "./IERC721Mintable.sol";
 import { 
-  IContractMetadata,
-  ITokenMetadata,
+  IERC721ContractMetadata,
+  IERC721TokenMetadata,
   Ownable,
-  DocumentAbstract 
-} from "./DocumentAbstract.sol";
+  ERC721DocumentSpec
+} from "./ERC721DocumentSpec.sol";
 
 error InvalidProof();
 
+/**
+ * @dev Covers configuration and minting. See ERC721DocumentSpec 
+ * for underlying logic.
+ */
 contract Document is 
-  IDocumentMintable, 
+  IERC721Mintable, 
   ReentrancyGuard, 
-  DocumentAbstract 
+  ERC721DocumentSpec
 {
   // ============ Constants ============
 
@@ -28,7 +32,7 @@ contract Document is
   /**
    * @dev Sets the data contract and the default owner.
    */
-  constructor(IContractMetadata data, address admin) Ownable(admin)  {
+  constructor(IERC721ContractMetadata data, address admin) Ownable(admin)  {
     _contractData = data;
     _grantRole(DEFAULT_ADMIN_ROLE, admin);
   }
@@ -48,7 +52,7 @@ contract Document is
     // Mint the token
     _safeMint(recipient, tokenId);
     // Map the token metadata
-    _mapData(tokenId, ITokenMetadata(_msgSender()));
+    _mapData(tokenId, IERC721TokenMetadata(_msgSender()));
     return tokenId;
   }
 }

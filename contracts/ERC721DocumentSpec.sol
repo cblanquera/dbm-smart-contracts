@@ -5,17 +5,31 @@ pragma solidity ^0.8.29;
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
 
-import { IContractMetadata } from "./IContractMetadata.sol";
-import { ITokenMetadata } from "./ITokenMetadata.sol";
-import { ERC721Abstract } from "./ERC721Abstract.sol";
+import { IERC721ContractMetadata } from "./IERC721ContractMetadata.sol";
+import { IERC721TokenMetadata } from "./IERC721TokenMetadata.sol";
+import { ERC721Spec } from "./ERC721Spec.sol";
 
 error MetadataNotSet();
 error MetadataAlreadySet();
 
-abstract contract DocumentAbstract is 
+/**
+ * @dev This is actually the main logic of the document contract.
+ * The main contract should cover configuration and minting. Things
+ * covered in this abstract are:
+ * - Contract is ownable; Owners manages the roles
+ * - Contract has roles and permissions
+ *   - Curator role can update contract's metadata (ex. DAO)
+ *   - Approved role are for trusted platforms that can perform token xfers
+ *   - Only document specs (ie. NCA, SARO) should have the minter role
+ * - Contract's metadata is managed by a separate contract
+ * - Each token's metadata is managed by a document spec. This means,
+ * - Tokens are mapped to different metadata contracts (document specs)
+ * - The purpose of document specs is to provide unique search tools
+ */
+abstract contract ERC721DocumentSpec is 
   Ownable,
   AccessControl, 
-  ERC721Abstract 
+  ERC721Spec 
 {
   // ============ Constants ============
 
@@ -29,10 +43,10 @@ abstract contract DocumentAbstract is
   // The last token id minted
   uint256 private _lastTokenId;
   // Contract Metadata interface
-  IContractMetadata internal _contractData;
+  IERC721ContractMetadata internal _contractData;
   // Mapping of token ID to TokenMetadata contract
-  mapping(uint256 => ITokenMetadata) internal _tokenData;
-  
+  mapping(uint256 => IERC721TokenMetadata) internal _tokenData;
+
   // ============ Read Methods ============
 
   /**
@@ -66,7 +80,7 @@ abstract contract DocumentAbstract is
    */
   function supportsInterface(
     bytes4 interfaceId
-  ) public view override(AccessControl, ERC721Abstract) returns(bool) {
+  ) public view override(AccessControl, ERC721Spec) returns(bool) {
     return super.supportsInterface(interfaceId);
   }
 
@@ -105,7 +119,7 @@ abstract contract DocumentAbstract is
   /**
    * @dev Updates the contract metadata location
    */
-  function updateMetadata(IContractMetadata data) 
+  function updateMetadata(IERC721ContractMetadata data) 
     external onlyRole(_CURATOR_ROLE) 
   {
     _contractData = data;
@@ -134,7 +148,7 @@ abstract contract DocumentAbstract is
   /**
    * @dev Maps a tokenId to a TokenMetadata contract
    */
-  function _mapData(uint256 tokenId, ITokenMetadata data) 
+  function _mapData(uint256 tokenId, IERC721TokenMetadata data) 
     internal virtual
   {
     // NOTE: no need to check if token exists because this 

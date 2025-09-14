@@ -2,9 +2,16 @@
 
 pragma solidity ^0.8.29;
 
-import { IContractMetadata } from "./IContractMetadata.sol";
+import { IERC721ContractMetadata } from "./IERC721ContractMetadata.sol";
 
-contract DocumentMetadata is IContractMetadata {
+/**
+  * @dev This contracts gets attached to the main document contract
+  * in order to provide contract metadata (name, symbol, contractURI).
+  *
+  * You can change deploy another version of this contract to update 
+  * the main contract's metadata.
+ */
+contract DocumentMetadata is IERC721ContractMetadata {
   // ============ Read Methods ============
 
   /**
