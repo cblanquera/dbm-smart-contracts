@@ -1,44 +1,45 @@
-require("@nomicfoundation/hardhat-toolbox");
+require('@nomicfoundation/hardhat-toolbox');
+require('dotenv').config();
 
-require("dotenv").config({ path: __dirname + "/.env" });
-require("hardhat-deploy");
-const DEPLOYER_PKs = {
-  amoy: [process.env.WALLET_PK_AMOY],
-  // zkevm_test: [process.env.WALLET_PK_ZKEVM_TEST],
-  polygon_main: [process.env.WALLET_PK_PROD],
+const env = {
+  amoy: {
+    rpc: process.env.AMOY_RPC || 'https://rpc-amoy.polygon.technology',
+    pk: process.env.AMOY_PK || '',
+    scan: process.env.AMOY_SCAN || ''
+  },
+  polygon: {
+    rpc: process.env.POLYGON_RPC || 'https://polygon-rpc.com/',
+    pk: process.env.POLYGON_PK || '',
+    scan: process.env.POLYGON_SCAN || ''
+  },
+  cmc: process.env.CMC_KEY || ''
 };
 
-const etherscanKey = process.env.ETHERSCAN_KEY;
-const okLinkAPIKey = process.env.OKLINK_API_KEY;
-
-/** @type import('hardhat/config').HardhatUserConfig */
 module.exports = {
-  // defaultNetwork: "amoy",
-  defaultNetwork: "amoy",
-  // defaultNetwork: "polygon_main",
+  defaultNetwork: 'testnet',
   networks: {
     hardhat: {
-      chainId: 1011,
+      chainId: 1011
     },
-    amoy: {
-      url: "https://rpc-amoy.polygon.technology",
-      chainId: 80002,
-      accounts: DEPLOYER_PKs.amoy,
-      // blockConfirmations: 6,
+    testnet: {
+      url: env.amoy.rpc,
+      accounts: env.amoy.pk !== '' ? [ env.amoy.pk ] : [],
+      chainId: 80002
     },
-    // zkevm_test: {
-    //   url: "https://endpoints.omniatech.io/v1/polygon-zkevm/testnet/public",
-    //   chainId: 1442,
-    //   accounts: DEPLOYER_PKs.zkevm_test
-    // },
-    polygon_main: {
-      url: "https://polygon-rpc.com/",
-      chainId: 137,
-      accounts: DEPLOYER_PKs.polygon_main,
+    mainnet: {
+      url: env.polygon.rpc,
+      accounts: env.polygon.pk !== '' ? [ env.polygon.pk ] : [],
+      chainId: 137
     },
   },
+  etherscan: {
+    apiKey: {
+      testnet: env.amoy.scan,
+      mainnet: env.polygon.scan
+    }
+  },
   solidity: {
-    version: "0.8.4",
+    version: '0.8.29',
     settings: {
       optimizer: {
         enabled: true,
@@ -46,32 +47,19 @@ module.exports = {
       },
     },
   },
-  etherscan: {
-    // apiKey: etherscanKey,
-    // apiKey: okLinkAPIKey,
-    apiKey: {
-      polygon: etherscanKey,
-      amoy: okLinkAPIKey,
-    },
-    customChains: [
-      {
-        network: "amoy",
-        chainId: 80002,
-        urls: {
-          apiURL:
-            "https://www.oklink.com/api/explorer/v1/contract/verify/async/api/polygonAmoy",
-          browserURL: "https://www.oklink.com/amoy",
-        },
-      },
-    ],
-  },
-  namedAccounts: {
-    deployer: {
-      default: 0, // here this will by default take the first account as deployer
-      1: 0, // similarly on mainnet it will take the first account as deployer. Note though that depending on how hardhat network are configured, the account 0 on one network can be different than on another
-    },
+  // Other configurations like paths, mocha, etc. can be added here
+  paths: {
+    sources: './contracts',
+    tests: './tests',
+    cache: './cache',
+    artifacts: './artifacts'
   },
   mocha: {
-    timeout: 500000, // 500 seconds max for running tests
+    timeout: 40000
   },
+  gasReporter: {
+    currency: 'USD',
+    coinmarketcap: env.cmc,
+    gasPrice: 20
+  }
 };
