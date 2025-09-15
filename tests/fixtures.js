@@ -206,7 +206,16 @@ const ncaBatches = [
       ncaSingles[8].released,
       ncaSingles[9].released
     ]
-  }
+  },
+  {
+    cids: ncaSingles.map(s => s.cid),
+    data: ncaSingles.map(s => {
+      const d = { ...s.data };
+      d.ncaNumber += '-BATCH';
+      return d;
+    }),
+    released: ncaSingles.map(s => s.released)
+  },
 ];
 
 // https://polygonscan.com/tx/0xa09f99ce9abfeada2dd66497bc802ea5d15c8f8d2ada57795ef92c7293ff8d72
@@ -397,6 +406,15 @@ const saroBatches = [
       saroSingles[8].released,
       saroSingles[9].released
     ]
+  },
+  {
+    cids: saroSingles.map(s => s.cid),
+    data: saroSingles.map(s => {
+      const d = { ...s.data };
+      d.saroNumber += '-BATCH';
+      return d;
+    }),
+    released: saroSingles.map(s => s.released)
   }
 ];
 

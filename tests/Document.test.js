@@ -1,5 +1,29 @@
-const { expect, deploy, bindContract, getRole } = require('./utils');
-const data = require('./fixtures');
+const { 
+  expect, 
+  deploy, 
+  bindContract, 
+  getRole
+} = require('./utils');
+
+function authorizeMint(contract, recipient) {
+  return Buffer.from(
+    ethers.solidityPackedKeccak256(
+      [ 'string', 'address', 'address' ],
+      [ 'mint', contract, recipient ]
+    ).slice(2),
+    'hex'
+  )
+}
+
+function authorizeBatch(contract, recipient, amount) {
+  return Buffer.from(
+    ethers.solidityPackedKeccak256(
+      [ 'string', 'address', 'address', 'uint256' ],
+      [ 'batch', contract, recipient, amount ]
+    ).slice(2),
+    'hex'
+  )
+}
 
 describe('Document Tests', function () {
   before(async function() {
@@ -30,31 +54,35 @@ describe('Document Tests', function () {
     const nca = await deploy('NCADocument', 'ipfs://', this.contracts.document, admin.address);
     //save address for later use
     this.contracts.nca = await nca.getAddress();
-    await bindContract('withNca', 'NCADocument', nca, signers);
-    //5. Document Contract - MINTER_ROLE to NCA Document Contract
-    await admin.withDocument.grantRole(getRole('MINTER_ROLE'), this.contracts.nca);
-    //6. NCA Document Contract - Set MINTER_ROLE
-    await nca.grantRole(getRole('MINTER_ROLE'), minter.address);
-    //7. Deploy NCA Search Contract
-    //   - ARG1: NCA Document Contract
-    const ncaSearch = await deploy('NCASearch', this.contracts.nca);
-    await bindContract('withNcaSearch', 'NCASearch', ncaSearch, signers);
-    //8. Deploy SARO Document Contract
-    //   - ARG1: Base URI
-    //   - ARG2: Document Contract
-    //   - ARG2: Admin Address
-    const saro = await deploy('SARODocument', 'ipfs://', this.contracts.document, admin.address);
-    //save address for later use
-    this.contracts.saro = await saro.getAddress();
-    await bindContract('withSaro', 'SARODocument', saro, signers);
-    //9. Document Contract - MINTER_ROLE to SARO Document Contract
-    await admin.withDocument.grantRole(getRole('MINTER_ROLE'), this.contracts.saro);
-    //10. SARO Document Contract - Set MINTER_ROLE
-    await saro.grantRole(getRole('MINTER_ROLE'), minter.address);
-    //11. Deploy SARO Search Contract
-    //   - ARG1: SARO Document Contract
-    const saroSearch = await deploy('SAROSearch', this.contracts.saro);
-    await bindContract('withSaroSearch', 'SAROSearch', saroSearch, signers);
+
+    //fix minting overrides
+    //['mint(address)']
+    //['mint(address,address)']
+    //['mint(address,address,bytes)']
+    for (let i = 0; i < signers.length; i++) {
+      signers[i].withDocument.mint = function(...args) {
+        switch (args.length) {
+          case 1: return signers[i].withDocument['mint(address)'](...args)
+          case 2: return signers[i].withDocument['mint(address,address)'](...args)
+          case 3: return signers[i].withDocument['mint(address,address,bytes)'](...args)
+        }
+      }
+    }
+
+    //fix batch overrides
+    //['batch(address,uint256)']
+    //['batch(address,address,uint256)']
+    //['batch(address,address,uint256,bytes)']
+    for (let i = 0; i < signers.length; i++) {
+      signers[i].withDocument.batch = function(...args) {
+        switch (args.length) {
+          case 1: return signers[i].withDocument['batch(address)'](...args)
+          case 2: return signers[i].withDocument['batch(address,address)'](...args)
+          case 3: return signers[i].withDocument['batch(address,address,uint256)'](...args)
+          case 4: return signers[i].withDocument['batch(address,address,uint256,bytes)'](...args)
+        }
+      }
+    }
 
     this.signers = { 
       admin, 
@@ -65,41 +93,177 @@ describe('Document Tests', function () {
     }
   })
 
-  it('Should mint with NCA', async function () {
+  it('Should mint with MINTER_ROLE', async function () {
     const { admin, minter } = this.signers;
-    await minter.withNca.mint(
-      admin, 
-      data.nca.singles[0].cid, 
-      data.nca.singles[0].data, 
-      data.nca.singles[0].released
-    );
-    await minter.withNca.mint(
-      admin, 
-      data.nca.singles[1].cid, 
-      data.nca.singles[1].data, 
-      data.nca.singles[1].released
-    );
+    await minter.withDocument.mint(this.contracts.nca, admin.address);
+    await minter.withDocument.mint(this.contracts.nca, admin.address);
 
     expect(await admin.withDocument.ownerOf(1)).to.equal(admin.address);
     expect(await admin.withDocument.ownerOf(2)).to.equal(admin.address);
+    expect(await admin.withDocument.totalSupply()).to.equal(2);
+    expect(await admin.withDocument.balanceOf(admin.address)).to.equal(2);
   })
 
-  it('Should mint with SARO', async function () {
-    const { admin, minter } = this.signers;
-    await minter.withSaro.mint(
-      admin, 
-      data.saro.singles[0].cid, 
-      data.saro.singles[0].data, 
-      data.saro.singles[0].released
-    );
-    await minter.withSaro.mint(
-      admin, 
-      data.saro.singles[1].cid, 
-      data.saro.singles[1].data, 
-      data.saro.singles[1].released
-    );
+  it('Should mint with MINTER_ROLE permission', async function () {
+    const { admin, minter, others } = this.signers;
 
-    expect(await admin.withDocument.ownerOf(1)).to.equal(admin.address);
-    expect(await admin.withDocument.ownerOf(2)).to.equal(admin.address);
+    const proof = await minter.signMessage(
+      authorizeMint(
+        this.contracts.nca, 
+        others[0].address
+      )
+    )
+  
+    await others[0].withDocument.mint(
+      this.contracts.nca, 
+      others[0].address, 
+      proof
+    )
+
+    expect(await admin.withDocument.ownerOf(3)).to.equal(others[0].address);
+    expect(await admin.withDocument.totalSupply()).to.equal(3);
+    expect(await admin.withDocument.balanceOf(admin.address)).to.equal(2);
+    expect(await admin.withDocument.balanceOf(others[0].address)).to.equal(1);
+  })
+
+  it('Should batch mint with MINTER_ROLE', async function () {
+    const { admin, minter } = this.signers;
+    await minter.withDocument.batch(this.contracts.nca, admin.address, 4);
+    await minter.withDocument.batch(this.contracts.nca, admin.address, 6);
+    await minter.withDocument.batch(this.contracts.nca, admin.address, 8);
+    await minter.withDocument.batch(this.contracts.nca, admin.address, 10);
+    for (let i = 4; i <= 30; i++) {
+      expect(await admin.withDocument.ownerOf(i)).to.equal(admin.address);
+    }
+    expect(await admin.withDocument.totalSupply()).to.equal(31);
+    expect(await admin.withDocument.balanceOf(admin.address)).to.equal(30);
+  })
+
+  it('Should batch mint with MINTER_ROLE permission', async function () {
+    const { admin, minter, others } = this.signers;
+
+    const proof = await minter.signMessage(
+      authorizeBatch(
+        this.contracts.nca, 
+        others[0].address,
+        4
+      )
+    )
+  
+    await others[0].withDocument.batch(
+      this.contracts.nca, 
+      others[0].address, 
+      4,
+      proof
+    )
+
+    for (let i = 32; i <= 35; i++) {
+      expect(await admin.withDocument.ownerOf(i)).to.equal(others[0].address);
+    }
+    expect(await admin.withDocument.totalSupply()).to.equal(35);
+  })
+
+  it('Should update contract metadata', async function () {
+    const { admin, curator } = this.signers;
+    expect(await admin.withDocument.name()).to.equal('DBM Documents');
+    expect(await admin.withDocument.symbol()).to.equal('DBMDocu');
+    expect(await admin.withDocument.contractURI()).to.equal('ipfs://QmXoypizjW3WknFiJnKLwHCnL72vedxjQkDDP1mXWo6uco');
+
+    await curator.withDocument.updateMetadata(this.contracts.info);
+
+    expect(await admin.withDocument.name()).to.equal('DBM Documents');
+    expect(await admin.withDocument.symbol()).to.equal('DBMDocu');
+    expect(await admin.withDocument.contractURI()).to.equal('ipfs://QmXoypizjW3WknFiJnKLwHCnL72vedxjQkDDP1mXWo6uco');
+  })
+
+  it('Should transfer', async function () {
+    const { admin } = this.signers
+    const [ tokenOwner1, tokenOwner2 ] = this.signers.others;
+
+    await admin.withDocument.transferFrom(admin.address, tokenOwner1.address, 1)
+    await admin.withDocument.transferFrom(admin.address, tokenOwner2.address, 2)
+    await tokenOwner2.withDocument.transferFrom(tokenOwner2.address, tokenOwner1.address, 2)
+
+    expect(await admin.withDocument.ownerOf(1)).to.equal(tokenOwner1.address)
+    expect(await admin.withDocument.ownerOf(2)).to.equal(tokenOwner1.address)
+  })
+
+  it('Should approve', async function () {
+    const { admin } = this.signers
+    const [ tokenOwner1, tokenOwner2 ] = this.signers.others;
+
+    await tokenOwner1.withDocument.approve(tokenOwner2.address, 1)
+    expect(await admin.withDocument.getApproved(1)).to.equal(tokenOwner2.address)
+
+    await admin.withDocument.setApprovalForAll(tokenOwner1.address, true)
+    expect(
+      await admin.withDocument.isApprovedForAll(
+        admin.address,
+        tokenOwner1.address
+      )
+    ).to.equal(true)
+  })
+
+  it('Should not mint without MINTER_ROLE', async function () {
+    const { admin, others } = this.signers;
+
+    await expect(
+      others[0].withDocument.mint(this.contracts.nca, others[0].address)
+    ).to.be.reverted;
+  })
+
+  it('Should not mint without MINTER_ROLE permission', async function () {
+    const { admin, others } = this.signers;
+
+    const proof = await admin.signMessage(
+      authorizeMint(
+        this.contracts.nca,
+        others[0].address
+      )
+    )
+
+    await expect(
+      others[0].withDocument.mint(this.contracts.nca, others[0].address, proof)
+    ).to.be.reverted;
+  })
+
+  it('Should not batch mint without MINTER_ROLE', async function () {
+    const { others } = this.signers;
+
+    await expect(
+      others[0].withDocument.batch(this.contracts.nca, others[0].address, 4)
+    ).to.be.reverted;
+  })
+
+  it('Should not batch mint without MINTER_ROLE permission', async function () {
+    const { admin, others } = this.signers;
+
+    const proof = await admin.signMessage(
+      authorizeBatch(
+        this.contracts.nca,
+        others[0].address,
+        1000
+      )
+    )
+
+    await expect(
+      others[0].withDocument.batch(this.contracts.nca, others[0].address, 1000, proof)
+    ).to.be.reverted;
+  })
+
+  it('Should not transfer', async function () {
+    const { others } = this.signers;
+
+    await expect(
+      others[4].withDocument.transferFrom(others[0].address, others[1].address, 1)
+    ).to.be.reverted;
+  })
+
+  it('Should not approve', async function () {
+    const { others } = this.signers;
+
+    await expect(
+      others[4].withDocument.approve(others[1].address, 1)
+    ).to.be.reverted;
   })
 })

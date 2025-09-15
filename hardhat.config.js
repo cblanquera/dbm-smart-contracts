@@ -67,8 +67,10 @@ module.exports = {
   },
   gasReporter: {
     L1: 'polygon',
-    currency: 'PHP',
+    currency: 'USD',
+    currencyDisplayPrecision: 6,
     coinmarketcap: env.cmc,
+    etherscan: env.polygon.scan,
     gasPrice: 30
   }
 };

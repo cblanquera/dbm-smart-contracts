@@ -76,7 +76,7 @@ contract Document is
   ) external nonReentrant {
     // Make sure the minter signed this off
     if (!hasRole(_MINTER_ROLE, Verifier.author(
-      abi.encodePacked("batch", address(data), recipient), 
+      abi.encodePacked("batch", address(data), recipient, amount), 
       proof
     ))) {
       revert InvalidProof();
