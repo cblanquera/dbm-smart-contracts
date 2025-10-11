@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Polygon Contract Reader — Read-only ABI UI</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Ethers v6 (UMD) -->
+  <script src="https://unpkg.com/ethers@6.13.4/dist/ethers.umd.min.js"></script>
+  <style>
+    :root { --bg:#0b1220; --panel:#0f172a; --layout: #1f2937; --muted:#94a3b8; --fg:#e5e7eb; --line:#1f2937; --accent:#22d3ee; --ok:#34d399; --err:#f87171; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter; background:var(--bg); color:var(--fg); }
+    .wrap { max-width: 1100px; margin: 32px auto; padding: 0 16px; }
+    .card { background:var(--layout); border:1px solid var(--line); border-radius:14px; padding:18px; }
+    .row { display:grid; gap:12px; }
+    @media (min-width: 900px){ .row-2{ grid-template-columns:1fr 1fr } .row-3{ grid-template-columns:1fr 1fr 1fr } }
+    label { display:block; font-weight:600; margin:6px 0; }
+    input, select { width:100%; background:#0b1220; color:var(--fg); border:1px solid var(--line); border-radius:10px; padding:10px 12px; font-family: ui-monospace, Menlo, Consolas, monospace; }
+    input:focus, select:focus { outline:none; border-color: var(--accent); }
+    button { cursor:pointer; border:0; padding:10px 14px; border-radius:10px; font-weight:700; }
+    .primary { background:var(--accent); color:#07242c; }
+    .ghost { background:transparent; color:var(--fg); border:1px solid var(--line); }
+    .muted { color:var(--muted); margin-top: 10px; font-size: 12px; font-style: italic; }
+    .ok { color:var(--ok); }
+    .err { color:var(--err); white-space:pre-wrap; }
+    .fn { background-color: var(--panel); border:1px dashed #263041; border-radius:12px; padding:12px; margin:12px 0; }
+    pre { background:#0b1220; border:1px solid var(--line); border-radius:10px; padding:12px; overflow:auto; }
+    .mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; }
+    p a { color: #EEEEEE; }
+    .argrow label { font-weight: normal; color: #BBBBBB; font-size: 12px; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h2 style="margin:0 0 8px">DBM Documents Explorer</h2>
+      <p class="muted" style="margin:0 0 14px">
+        The following reads from the DBM Documents
+        <a target="_blank" href="https://polygonscan.com/tx/0x7df98738c200a1e30ebcb2ead51aebe74bdacb74f2cd641b7b7d2ebbc4a6fcf0">Polygon Smart Contract</a>
+      </p>
+
+      <input type="hidden" id="rpc" value="https://polygon-rpc.com" />
+      <input type="hidden" id="addr" value="0xF8c3722Eb2b7711735D2f239798443D9456ae005" />
+      <input type="hidden" id="blockTag" value="latest" />
+      <input type="hidden" id="fnCount" />
+      <input type="hidden" id="autoparse" value="true" />
+
+      <div id="functions" style="margin-top:8px"></div>
+
+      <div class="row" style="margin-top:14px">
+        <button class="ghost" id="clear">Clear All Outputs</button>
+      </div>
+
+      <div id="status" class="muted" style="margin-top:12px"></div>
+    </div>
+  </div>
+
+  <!-- ✅ Hard-coded ABI from your message -->
+  <script id="abi" type="application/json">
+[
+  { "inputs":[{"internalType":"uint256","name":"","type":"uint256"}], "name":"agencyFilterList", "outputs":[{"internalType":"string","name":"","type":"string"}], "stateMutability":"view", "type":"function" },
+  { "inputs":[{"internalType":"address","name":"owner","type":"address","value":"0x6c49e4320aadadc856c3968e8b44b85216aa5cc9"}], "name":"balanceOf", "outputs":[{"internalType":"uint256","name":"","type":"uint256"}], "stateMutability":"view", "type":"function" },
+  { "inputs":[{"internalType":"uint256","name":"","type":"uint256"}], "name":"departmentFilterList", "outputs":[{"internalType":"string","name":"","type":"string"}], "stateMutability":"view", "type":"function" },
+  { "inputs":[{"internalType":"string","name":"","type":"string"},{"internalType":"uint256","name":"","type":"uint256"}], "name":"documentFilters", "outputs":[{"internalType":"string","name":"","type":"string"}], "stateMutability":"view", "type":"function" },
+  { "inputs":[{"internalType":"uint256","name":"","type":"uint256"}], "name":"documentIds", "outputs":[{"internalType":"string","name":"","type":"string"}], "stateMutability":"view", "type":"function" },
+  { "inputs":[{"internalType":"uint256","name":"","type":"uint256"}], "name":"documentTokenId", "outputs":[{"internalType":"string","name":"","type":"string"}], "stateMutability":"view", "type":"function" },
+  { "inputs":[{"internalType":"string","name":"year","type":"string"},{"internalType":"string","name":"documentType","type":"string"},{"internalType":"string","name":"department","type":"string"}], "name":"getAgencyCategory", "outputs":[{"internalType":"string[]","name":"","type":"string[]"}], "stateMutability":"view", "type":"function" },
+  { "inputs":[{"internalType":"string","name":"_filterType","type":"string"},{"internalType":"uint256","name":"start","type":"uint256"},{"internalType":"uint256","name":"count","type":"uint256"}], "name":"getAllFilters", "outputs":[{"internalType":"string[]","name":"","type":"string[]"}], "stateMutability":"view", "type":"function" },
+  { "inputs":[{"internalType":"string","name":"year","type":"string"},{"internalType":"string","name":"documentType","type":"string"}], "name":"getDepartmentCategory", "outputs":[{"internalType":"string[]","name":"","type":"string[]"}], "stateMutability":"view", "type":"function" },
+  { "inputs":[{"internalType":"uint256","name":"start","type":"uint256"},{"internalType":"uint256","name":"count","type":"uint256"}], "name":"getDocumentIds", "outputs":[{"internalType":"string[]","name":"","type":"string[]"}], "stateMutability":"view", "type":"function" },
+  { "inputs":[], "name":"getDocumentTopSearched", "outputs":[{"internalType":"string[]","name":"","type":"string[]"},{"internalType":"uint256[]","name":"","type":"uint256[]"}], "stateMutability":"view", "type":"function" },
+  { "inputs":[{"internalType":"string","name":"year","type":"string"}], "name":"getDocumentTypeCategory", "outputs":[{"internalType":"string[]","name":"","type":"string[]"}], "stateMutability":"view", "type":"function" },
+  { "inputs":[{"internalType":"string","name":"_filter","type":"string"},{"internalType":"uint256","name":"start","type":"uint256"},{"internalType":"uint256","name":"count","type":"uint256"}], "name":"getDocumentsUnderFilter", "outputs":[{"internalType":"string[]","name":"","type":"string[]"}], "stateMutability":"view", "type":"function" },
+  { "inputs":[{"internalType":"string","name":"_filter","type":"string"}], "name":"getFilteredDocumentsLength", "outputs":[{"internalType":"uint256","name":"","type":"uint256"}], "stateMutability":"view", "type":"function" },
+  { "inputs":[], "name":"getNCARecentlyViewed", "outputs":[{"internalType":"string[]","name":"","type":"string[]"}], "stateMutability":"view", "type":"function" },
+  { "inputs":[], "name":"getNcaCount", "outputs":[{"internalType":"uint256","name":"","type":"uint256"}], "stateMutability":"view", "type":"function" },
+  { "inputs":[{"internalType":"string","name":"_ncaNumber","type":"string"}], "name":"getNcaData", "outputs":[{"components":[{"internalType":"string","name":"ncaNumber","type":"string"},{"internalType":"string","name":"ncaType","type":"string"},{"internalType":"string","name":"department","type":"string"},{"internalType":"string","name":"agency","type":"string"},{"internalType":"string[]","name":"operatingUnit","type":"string[]"},{"internalType":"string[]","name":"amount","type":"string[]"},{"internalType":"string","name":"totalAmount","type":"string"},{"internalType":"string","name":"purpose","type":"string"},{"internalType":"string","name":"qrId","type":"string"},{"internalType":"string","name":"releasedDate","type":"string"}], "internalType":"struct Document.NCAMetadata", "name":"", "type":"tuple"}], "stateMutability":"view", "type":"function" },
+  { "inputs":[], "name":"getNcaIndex", "outputs":[{"internalType":"uint256","name":"","type":"uint256"}], "stateMutability":"view", "type":"function" },
+  { "inputs":[{"internalType":"string","name":"year","type":"string"},{"internalType":"string","name":"documentType","type":"string"},{"internalType":"string","name":"department","type":"string"},{"internalType":"string","name":"agency","type":"string"}], "name":"getOperatingUnitCategory", "outputs":[{"internalType":"string[]","name":"","type":"string[]"}], "stateMutability":"view", "type":"function" },
+  { "inputs":[], "name":"getSaroCount", "outputs":[{"internalType":"uint256","name":"","type":"uint256"}], "stateMutability":"view", "type":"function" },
+  { "inputs":[{"internalType":"string","name":"_saroNumber","type":"string"}], "name":"getSaroData", "outputs":[{"components":[{"internalType":"string","name":"saroNumber","type":"string"},{"internalType":"string","name":"amount","type":"string"},{"internalType":"string","name":"department","type":"string"},{"internalType":"string","name":"agency","type":"string"},{"internalType":"string","name":"operatingUnit","type":"string"},{"internalType":"string","name":"purpose","type":"string"},{"internalType":"string","name":"qrId","type":"string"},{"internalType":"string","name":"releasedDate","type":"string"}], "internalType":"struct Document.SAROMetadata", "name":"", "type":"tuple"}], "stateMutability":"view", "type":"function" },
+  { "inputs":[], "name":"getSaroRecentlyViewed", "outputs":[{"internalType":"string[]","name":"","type":"string[]"}], "stateMutability":"view", "type":"function" },
+  { "inputs":[{"internalType":"string","name":"_documentNumber","type":"string"}], "name":"getTokenIdToDocu", "outputs":[{"internalType":"uint256","name":"","type":"uint256"}], "stateMutability":"view", "type":"function" },
+  { "inputs":[], "name":"getTotalAgencyFilterCount", "outputs":[{"internalType":"uint256","name":"","type":"uint256"}], "stateMutability":"view", "type":"function" },
+  { "inputs":[], "name":"getTotalDeptFilterCount", "outputs":[{"internalType":"uint256","name":"","type":"uint256"}], "stateMutability":"view", "type":"function" },
+  { "inputs":[], "name":"getTotalDocumentCount", "outputs":[{"internalType":"uint256","name":"","type":"uint256"}], "stateMutability":"view", "type":"function" },
+  { "inputs":[], "name":"getTotalOperatingUnitFilterCount", "outputs":[{"internalType":"uint256","name":"","type":"uint256"}], "stateMutability":"view", "type":"function" },
+  { "inputs":[], "name":"getTotalYearFilterCount", "outputs":[{"internalType":"uint256","name":"","type":"uint256"}], "stateMutability":"view", "type":"function" },
+  { "inputs":[{"internalType":"uint256","name":"","type":"uint256"}], "name":"ncaRecentlyViewed", "outputs":[{"internalType":"string","name":"","type":"string"}], "stateMutability":"view", "type":"function" },
+  { "inputs":[{"internalType":"uint256","name":"","type":"uint256"}], "name":"operatingUnitFilterList", "outputs":[{"internalType":"string","name":"","type":"string"}], "stateMutability":"view", "type":"function" },
+  { "inputs":[{"internalType":"uint256","name":"","type":"uint256"}], "name":"saroRecentlyViewed", "outputs":[{"internalType":"string","name":"","type":"string"}], "stateMutability":"view", "type":"function" },
+  { "inputs":[{"internalType":"string","name":"","type":"string"}], "name":"tokenIdToDocu", "outputs":[{"internalType":"uint256","name":"","type":"uint256"}], "stateMutability":"view", "type":"function" },
+  { "inputs":[{"internalType":"uint256","name":"tokenId","type":"uint256"}], "name":"tokenURI", "outputs":[{"internalType":"string","name":"","type":"string"}], "stateMutability":"view", "type":"function" },
+  { "inputs":[{"internalType":"uint256","name":"","type":"uint256"}], "name":"yearFilterList", "outputs":[{"internalType":"string","name":"","type":"string"}], "stateMutability":"view", "type":"function" }
+]
+  </script>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const setTxt = (el, s, cls) => { el.textContent = s; if (cls) el.className = cls; };
+
+    // ---- UI helpers
+    function placeholderForType(t) {
+      if (t === 'address') return '0xabc...';
+      if (t.startsWith('uint') || t.startsWith('int')) return '123';
+      if (t === 'bool') return 'true / false';
+      if (t.startsWith('bytes')) return '0x…';
+      return 'string';
+    }
+    function coerceValue(str, t) {
+      if (t === 'bool') return String(str).trim().toLowerCase() === 'true';
+      if (t.startsWith('uint') || t.startsWith('int')) {
+        if (!str.trim()) throw new Error('numeric arg required');
+        return BigInt(str);
+      }
+      // address, string, bytes, etc.
+      return str;
+    }
+
+    // ---- Decoding helpers: convert ethers Result to plain JSON using ABI types
+    function plainify(value, typeDesc) {
+      const t = typeDesc.type;
+      if (t.endsWith('[]')) {
+        const baseType = { type: t.slice(0, -2), components: typeDesc.components };
+        return Array.from(value).map(v => plainify(v, baseType));
+      }
+      if (t === 'tuple') {
+        const out = {};
+        (typeDesc.components || []).forEach((c, i) => {
+          const name = c.name && c.name.length ? c.name : String(i);
+          out[name] = plainify(value[i], c);
+        });
+        return out;
+      }
+      // scalars
+      if (typeof value === 'bigint') return value.toString();
+      return value;
+    }
+
+    function makeFnPanel(fn, idx) {
+      const box = document.createElement('div'); box.className = 'fn';
+      const title = document.createElement('div');
+      title.style.fontWeight = '700';
+      title.style.marginBottom = '20px';
+      title.textContent = fn.name;
+      box.appendChild(title);
+
+      // inputs
+      if ((fn.inputs || []).length) {
+        (fn.inputs || []).forEach((inp, i) => {
+          const row = document.createElement('div'); 
+          row.className = 'argrow';
+          const lab = document.createElement('label');
+          lab.textContent = `${inp.name || 'arg' + i}`;
+          const input = document.createElement('input');
+          input.placeholder = placeholderForType(inp.type);
+          input.id = `fn_${idx}_inp_${i}`;
+          input.dataset.type = JSON.stringify(inp);
+          row.appendChild(lab); 
+          row.appendChild(input);
+          box.appendChild(row);
+        });
+      } else {
+        const none = document.createElement('div'); 
+        none.className = 'muted'; 
+        none.textContent = '(no inputs)';
+        box.appendChild(none);
+      }
+
+      // buttons
+      const row = document.createElement('div'); 
+      row.style.display = 'flex'; 
+      row.style.gap = '10px'; 
+      row.style.marginTop = '20px';
+      
+      const btn = document.createElement('button'); 
+      btn.className = 'primary'; 
+      btn.textContent = 'Call';
+      
+      const clr = document.createElement('button'); 
+      clr.className = 'ghost'; 
+      clr.textContent = 'Clear';
+      row.appendChild(btn); 
+      box.appendChild(row);
+
+      const status = document.createElement('div'); 
+      status.className = 'muted'; 
+      status.style.marginTop = '8px';
+      
+      const out = document.createElement('pre'); 
+      out.textContent = '(no result)'; 
+      out.style.marginTop = '6px';
+      
+      box.appendChild(status); 
+
+      btn.addEventListener('click', async () => {
+        try {
+          setTxt(status, 'Calling…', 'muted');
+          const rpc = $('rpc').value.trim();
+          const addr = $('addr').value.trim();
+          const blockTag = $('blockTag').value.trim() || 'latest';
+          if (!ethers.isAddress(addr)) throw new Error('Invalid contract address');
+
+          const provider = new ethers.JsonRpcProvider(rpc);
+          const iface = new ethers.Interface([fn]);
+
+          // collect/coerce inputs
+          const args = (fn.inputs || []).map((inp, i) => {
+            const el = document.getElementById(`fn_${idx}_inp_${i}`);
+            const t = JSON.parse(el.dataset.type).type;
+            return coerceValue(el.value, t);
+          });
+
+          // low-level call (so we can set blockTag)
+          const data = iface.encodeFunctionData(fn.name, args);
+          const resp = await provider.call({ to: addr, data }, blockTag);
+          const decoded = iface.decodeFunctionResult(fn.name, resp); // ethers.Result
+          const outs = fn.outputs || [];
+
+          // build plain JSON
+          let plain;
+          if (outs.length === 1) {
+            plain = plainify(decoded[0], outs[0]);
+          } else {
+            plain = outs.map((o, i) => plainify(decoded[i], o));
+          }
+
+          // auto-parse if single string that looks like JSON
+          if (typeof plain === 'string' && $('autoparse').value === 'true') {
+            try { plain = JSON.parse(plain); } catch {}
+          }
+
+          box.appendChild(out);
+          row.appendChild(clr); 
+          setTxt(out, typeof plain === 'string' ? plain : JSON.stringify(plain, null, 2));
+          setTxt(status, 'Success.', 'ok');
+        } catch (e) {
+          setTxt(status, e.message || String(e), 'err');
+          box.removeChild(out);
+          row.removeChild(clr); 
+          setTxt(out, '');
+        }
+      });
+
+      clr.addEventListener('click', () => {
+        setTxt(status, '', 'muted');
+        box.removeChild(out);
+        row.removeChild(clr);
+        setTxt(out, '');
+      });
+
+      return box;
+    }
+
+    function loadAbiFromScript() {
+      const txt = $('abi').textContent.trim();
+      const abi = JSON.parse(txt);
+
+      const readFns = abi.filter(f => f.type === 'function' && (f.stateMutability === 'view' || f.stateMutability === 'pure'));
+      $('fnCount').value = String(readFns.length);
+
+      const container = $('functions');
+      container.innerHTML = '';
+      readFns.forEach((fn, i) => container.appendChild(makeFnPanel(fn, i)));
+
+      setTxt($('status'), `Loaded ABI with ${readFns.length} readable function(s).`, 'ok');
+    }
+
+    $('clear').addEventListener('click', () => {
+      document.querySelectorAll('#functions pre').forEach(n => n.remove());
+      document.querySelectorAll('#functions button.ghost').forEach(n => n.remove());
+      setTxt($('status'), 'Cleared outputs.', 'muted');
+    });
+
+    // initial
+    loadAbiFromScript();
+  </script>
+</body>
+</html>
